@@ -13,23 +13,8 @@
       #unity-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; outline: none; }
       #unity-warning { z-index: 5; }
 
-      /* ---- intro: "Ported by Down1oads" ---- */
-      #intro { position: fixed; inset: 0; z-index: 50; display: none; overflow: hidden; cursor: pointer;
-        background: radial-gradient(ellipse at 50% 55%, #ffe9c7 0%, #fbd9a6 50%, #f0bd80 100%); opacity: 1; transition: opacity .8s ease; }
-      #intro.out { opacity: 0; pointer-events: none; }
-      #introcv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-      #credit { position: absolute; left: 0; right: 0; top: 12%; text-align: center; perspective: 900px; pointer-events: none;
-        font-family: "Noto Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-      #credit .by { font-weight: 800; letter-spacing: .5em; font-size: clamp(14px, 2.2vw, 30px); color: #8a5530; margin-bottom: 1.2vh; padding-left: .5em;
-        opacity: 0; transform: translateY(-14px); }
-      #credit .by.on { animation: byIn .7s ease forwards; }
-      @keyframes byIn { to { opacity: .9; transform: none; } }
-      #credit .name { font-weight: 900; font-size: clamp(40px, 9vw, 150px); line-height: 1; letter-spacing: .04em; color: #fff4de; white-space: nowrap; transform-style: preserve-3d;
-        text-shadow: 0 1px 0 #d9731f, 0 2px 0 #cf6a1a, 0 3px 0 #c56116, 0 4px 0 #bb5913, 0 5px 0 #b05210, 0 6px 0 #a64b0e, 0 7px 0 #9c440c, 0 8px 0 #923d0a,
-                     0 14px 22px rgba(90, 40, 8, .45); }
-      #credit .name span { display: inline-block; opacity: 0; transform: rotateX(-110deg) translateY(-30px) translateZ(-260px); transform-origin: 50% 100%; }
-      #credit .name span.on { animation: letterIn .75s cubic-bezier(.2, 1.35, .4, 1) forwards; }
-      @keyframes letterIn { 0% { opacity: 0; transform: rotateX(-110deg) translateY(-30px) translateZ(-260px); } 25% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+      /* credit under the Unity loading bar */
+      #ported { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 24px; text-align: center; color: #fff; font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", "Comic Neue", cursive; font-size: 18px; letter-spacing: .02em; white-space: nowrap; }
     </style>
   </head>
   <body>
@@ -40,13 +25,9 @@
         <div id="unity-progress-bar-empty">
           <div id="unity-progress-bar-full"></div>
         </div>
+        <div id="ported">ported by down1oads</div>
       </div>
       <div id="unity-warning"> </div>
-    </div>
-
-    <div id="intro" aria-hidden="true">
-      <canvas id="introcv"></canvas>
-      <div id="credit"><div class="by" id="by">PORTED BY</div><div class="name" id="nm"></div></div>
     </div>
 
     <script src="Build/build_web.loader.js"></script>
@@ -98,176 +79,8 @@
         window.unityInstance = unityInstance;
         document.querySelector("#unity-loading-bar").style.display = "none";
         canvas.focus();
-        playIntro();
       }).catch(function (message) { alert(message); });
 
-      // ------------------------------------------------------------------------------------------
-      // Intro: a 3D sausage drops onto a frying pan, flips and sizzles, then the credit flips in.
-      // Small software 3D renderer (painter's algorithm + lambert shading), no libraries.
-      // ------------------------------------------------------------------------------------------
-      function playIntro() {
-        var intro = document.getElementById("intro"), cv = document.getElementById("introcv"), g = cv.getContext("2d");
-        var by = document.getElementById("by"), nm = document.getElementById("nm");
-        var TEXT = "DOWN1OADS", letters = [], i;
-        for (i = 0; i < TEXT.length; i++) { var sp0 = document.createElement("span"); sp0.textContent = TEXT[i]; nm.appendChild(sp0); letters.push(sp0); }
-        intro.style.display = "block";
-
-        var W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
-        function resize() { W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; }
-        resize(); window.addEventListener("resize", resize);
-
-        // ---- math ----
-        function rotMat(rx, ry, rz) { // Rz * Ry * Rx
-          var cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
-          return [[cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx], [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx], [-sy, cy * sx, cy * cx]];
-        }
-        function matMul(A, B) { var R = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], r, c, k; for (r = 0; r < 3; r++) for (c = 0; c < 3; c++) for (k = 0; k < 3; k++) R[r][c] += A[r][k] * B[k][c]; return R; }
-        function mul(m, v) { return [m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2], m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2], m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]]; }
-
-        // ---- mesh: surface of revolution around the X axis ----
-        function lathe(profile, segs) {
-          var verts = [], norms = [], quads = [], a, b;
-          for (a = 0; a < profile.length; a++) {
-            var p = profile[a], q = profile[Math.min(a + 1, profile.length - 1)], r = profile[Math.max(a - 1, 0)];
-            var dx = q[0] - r[0], dr = q[1] - r[1], l = Math.hypot(dx, dr) || 1, nx = dr / l, nr = -dx / l, row = [], nrow = [];
-            for (b = 0; b <= segs; b++) { var t = b / segs * Math.PI * 2, c = Math.cos(t), s2 = Math.sin(t); row.push([p[0], p[1] * c, p[1] * s2]); nrow.push([nx, nr * c, nr * s2]); }
-            verts.push(row); norms.push(nrow);
-          }
-          for (a = 0; a < profile.length - 1; a++) for (b = 0; b < segs; b++) quads.push([a, b]);
-          return { v: verts, n: norms, q: quads };
-        }
-        function capsuleProfile(len, rad, rings) {
-          var pr = [], k, a;
-          for (k = 0; k <= rings; k++) { a = -Math.PI / 2 + k / rings * Math.PI / 2; pr.push([-len / 2 + rad * Math.sin(a), rad * Math.cos(a)]); }
-          for (k = 1; k <= rings; k++) { a = k / rings * Math.PI / 2; pr.push([len / 2 + rad * Math.sin(a), rad * Math.cos(a)]); }
-          return pr;
-        }
-        var sausage = lathe(capsuleProfile(320, 68, 8), 26);
-        var panR = 270;
-        var pan = lathe([[-14, 0], [-14, panR * 0.86], [-4, panR * 0.97], [12, panR], [14, panR * 0.97], [14, panR * 0.93], [-2, panR * 0.9], [-10, panR * 0.84], [-10, 0]], 40);
-        var handle = lathe(capsuleProfile(300, 15, 3), 12);
-
-        var F = 1100, LIGHT = (function () { var l = [-0.45, -0.75, -0.55], m = Math.hypot(l[0], l[1], l[2]); return [l[0] / m, l[1] / m, l[2] / m]; })();
-        var queue = [];
-        // add an instance: vertices = M * (v + pre) * scale + pos
-        function addMesh(mesh, M, pos, base, opt) {
-          opt = opt || {};
-          var pre = opt.pre || [0, 0, 0], sc = opt.scale || 1, pv = [], pn = [], a, b;
-          for (a = 0; a < mesh.v.length; a++) {
-            var rv = [], rn = [];
-            for (b = 0; b < mesh.v[a].length; b++) {
-              var v = [mesh.v[a][b][0] + pre[0], mesh.v[a][b][1] + pre[1], mesh.v[a][b][2] + pre[2]];
-              if (opt.curve) v[1] += opt.curve * v[0] * v[0];
-              var w = mul(M, v); w = [w[0] * sc + pos[0], w[1] * sc + pos[1], w[2] * sc + pos[2]];
-              rv.push(w); rn.push(mul(M, mesh.n[a][b]));
-            }
-            pv.push(rv); pn.push(rn);
-          }
-          for (var k = 0; k < mesh.q.length; k++) {
-            var ia = mesh.q[k][0], ib = mesh.q[k][1];
-            var p0 = pv[ia][ib], p1 = pv[ia][ib + 1], p2 = pv[ia + 1][ib + 1], p3 = pv[ia + 1][ib];
-            var n0 = pn[ia][ib], n1 = pn[ia][ib + 1], n2 = pn[ia + 1][ib], n3 = pn[ia + 1][ib + 1];
-            queue.push({ p: [p0, p1, p2, p3], n: [(n0[0] + n1[0] + n2[0] + n3[0]) / 4, (n0[1] + n1[1] + n2[1] + n3[1]) / 4, (n0[2] + n1[2] + n2[2] + n3[2]) / 4],
-                         z: (p0[2] + p1[2] + p2[2] + p3[2]) / 4, base: base, two: !!opt.two, glossy: opt.glossy === undefined ? 1 : opt.glossy });
-          }
-        }
-        function cx() { return W / 2; }
-        function cy() { return H * 0.62; }
-        function proj(p) { var s = F / (F + p[2]); return [cx() + p[0] * s, cy() + p[1] * s, s]; }
-        function flush() {
-          queue.sort(function (a, b) { return b.z - a.z; });
-          for (var qi = 0; qi < queue.length; qi++) {
-            var q = queue[qi], n = q.n, nl = Math.hypot(n[0], n[1], n[2]) || 1; n = [n[0] / nl, n[1] / nl, n[2] / nl];
-            if (!q.two && n[2] > 0.05) continue; // facing away (camera looks along +z)
-            var d = n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2];
-            if (q.two) d = Math.max(d, -d * 0.55);
-            d = Math.max(0, d);
-            var spec = Math.pow(d, 22) * 0.55 * q.glossy, k = 0.30 + 0.80 * d;
-            var col = "rgb(" + (Math.min(255, q.base[0] * k + 255 * spec) | 0) + "," + (Math.min(255, q.base[1] * k + 255 * spec) | 0) + "," + (Math.min(255, q.base[2] * k + 255 * spec) | 0) + ")";
-            g.beginPath();
-            for (var j2 = 0; j2 < 4; j2++) { var pp = proj(q.p[j2]); if (j2 === 0) g.moveTo(pp[0], pp[1]); else g.lineTo(pp[0], pp[1]); }
-            g.closePath(); g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 0.8; g.fill(); g.stroke();
-          }
-          queue.length = 0;
-        }
-
-        // ---- sizzle particles ----
-        var steam = [], sparks = [];
-        function ease(t) { return t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t); }
-
-        var TILT = 1.0, panM = matMul(rotMat(TILT, 0, 0), rotMat(0, 0, -Math.PI / 2)), flatM = rotMat(TILT, 0, 0);
-        var start = performance.now(), last = start, finished = false, creditOn = false, lettersOn = false, DUR = 5.2, LAND = 1.15;
-
-        function frame(now) {
-          if (finished) return;
-          var t = (now - start) / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
-          g.setTransform(dpr, 0, 0, dpr, 0, 0);
-          g.clearRect(0, 0, W, H);
-          var fit = Math.min(1, W / 1500, H / 900); // keep everything on screen on small windows
-          g.save(); g.translate(cx(), cy()); g.scale(fit, fit); g.translate(-cx(), -cy());
-
-          // soft contact shadow under the pan
-          var gp = proj([0, 200, 40]);
-          g.save(); g.translate(gp[0], gp[1]); g.scale(1, 0.32);
-          var sg = g.createRadialGradient(0, 0, 10, 0, 0, 360 * gp[2]); sg.addColorStop(0, "rgba(90,45,10,.36)"); sg.addColorStop(1, "rgba(90,45,10,0)");
-          g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 360 * gp[2], 0, Math.PI * 2); g.fill(); g.restore();
-
-          // pan + handle
-          var psc = 0.6 + 0.4 * ease(t / 0.5);
-          addMesh(pan, panM, [0, 150, 40], [60, 60, 66], { two: true, glossy: 0.9, scale: psc });
-          addMesh(handle, flatM, [0, 150, 40], [52, 52, 58], { glossy: 0.7, scale: psc, pre: [panR * 0.98 + 150, -6, 0] });
-          flush();
-
-          // sausage: falls and tumbles, lands with a bounce, then a flip, then settles
-          var sy, rx, ry, rz, u = t - LAND;
-          if (t < LAND) { var f = t / LAND; sy = -(cy() + 400) * (1 - f * f) + 40 * f * f; rx = 0.2 + f * 0.25; ry = 0.4 + f * 2.6; rz = -0.8 + f * 5.2; }
-          else {
-            var bounce = u < 0.5 ? -Math.abs(Math.sin(u / 0.5 * Math.PI)) * 70 * (1 - u / 0.5) : 0;
-            sy = 40 + bounce; rx = 0.45; ry = 0.35 * Math.sin(u * 1.3); rz = -0.12;
-            var fl = (t - 2.25) / 1.0;
-            if (fl > 0 && fl < 1) { sy -= Math.sin(fl * Math.PI) * 210; rz += -ease(fl) * Math.PI * 2; }
-          }
-          addMesh(sausage, rotMat(rx, ry, rz), [0, sy, 20], [236, 104, 36], { curve: 0.0014, glossy: 1.2 });
-          flush();
-
-          // steam + sparks after landing
-          if (t > LAND) {
-            if (Math.random() < 0.55) steam.push({ x: (Math.random() - 0.5) * 300, y: 90, z: (Math.random() - 0.5) * 80, vy: -(55 + Math.random() * 70), r: 16 + Math.random() * 18, life: 0, max: 1.6 + Math.random() * 0.8 });
-            if (Math.random() < 0.6) sparks.push({ x: (Math.random() - 0.5) * 240, y: 110, z: (Math.random() - 0.5) * 60, vx: (Math.random() - 0.5) * 140, vy: -(120 + Math.random() * 160), life: 0, max: 0.5 + Math.random() * 0.4 });
-          }
-          var p;
-          for (i = steam.length - 1; i >= 0; i--) {
-            p = steam[i]; p.life += dt; p.y += p.vy * dt; p.x += Math.sin(p.life * 3 + p.z) * 12 * dt; p.r += 14 * dt;
-            if (p.life > p.max) { steam.splice(i, 1); continue; }
-            var sp = proj([p.x, p.y, p.z]), al = 0.2 * (1 - p.life / p.max);
-            var gr = g.createRadialGradient(sp[0], sp[1], 0, sp[0], sp[1], p.r * sp[2]); gr.addColorStop(0, "rgba(255,255,255," + al + ")"); gr.addColorStop(1, "rgba(255,255,255,0)");
-            g.fillStyle = gr; g.beginPath(); g.arc(sp[0], sp[1], p.r * sp[2], 0, Math.PI * 2); g.fill();
-          }
-          for (i = sparks.length - 1; i >= 0; i--) {
-            p = sparks[i]; p.life += dt; p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-            if (p.life > p.max || p.y > 190) { sparks.splice(i, 1); continue; }
-            var sq2 = proj([p.x, p.y, p.z]);
-            g.fillStyle = "rgba(255," + (170 + (Math.random() * 60 | 0)) + ",80," + (1 - p.life / p.max) + ")"; g.beginPath(); g.arc(sq2[0], sq2[1], 2.4 * sq2[2], 0, Math.PI * 2); g.fill();
-          }
-          g.restore();
-
-          // credit text (HTML, 3D letter flips)
-          if (t > 1.9 && !creditOn) { creditOn = true; by.classList.add("on"); }
-          if (t > 2.35 && !lettersOn) { lettersOn = true; letters.forEach(function (el, idx) { el.style.animationDelay = (idx * 0.075) + "s"; el.classList.add("on"); }); }
-
-          if (t > DUR) { finish(); return; }
-          requestAnimationFrame(frame);
-        }
-
-        function finish() {
-          if (finished) return; finished = true;
-          intro.classList.add("out");
-          setTimeout(function () { intro.style.display = "none"; window.removeEventListener("resize", resize); }, 900);
-        }
-        intro.addEventListener("pointerdown", finish);
-        window.addEventListener("keydown", function k() { finish(); window.removeEventListener("keydown", k); });
-        requestAnimationFrame(frame);
-      }
     </script>
   </body>
 </html>
