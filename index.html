@@ -64,6 +64,20 @@
       document.addEventListener("fullscreenchange", function () {
         [60, 250, 700, 1500].forEach(function (ms) { setTimeout(function () { window.dispatchEvent(new Event("resize")); }, ms); });
       });
+      // coming back to the tab (e.g. after the SLYR link) can leave the canvas black until the window resizes (F11 did that):
+      // nudge the canvas size by a couple of pixels and back so the game reallocates its buffers and repaints
+      function nudgeCanvas() {
+        if (!canvas) return;
+        canvas.style.width = "calc(100% - 2px)";
+        setTimeout(function () {
+          canvas.style.width = "";
+          window.dispatchEvent(new Event("resize"));
+        }, 90);
+      }
+      function nudgeSoon() { [0, 150, 600, 1500].forEach(function (ms) { setTimeout(nudgeCanvas, ms); }); }
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") nudgeSoon(); });
+      window.addEventListener("focus", nudgeSoon);
+      window.addEventListener("pageshow", nudgeSoon);
 
       var config = {
         arguments: [],
